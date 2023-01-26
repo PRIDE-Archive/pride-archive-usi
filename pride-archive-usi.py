@@ -20,6 +20,7 @@ app = FastAPI(title="PRIDE Archive USI",
 pride_archive_url = "https://www.ebi.ac.uk/pride/ws/archive/v2/projects/{}/files?filter=fileCategory.value==RAW" \
                     "&pageSize=100&page={}&sortDirection=DESC&sortConditions=fileName"
 
+pride_archive_project_url = "https://www.ebi.ac.uk/pride/ws/archive/v2/projects/{}"
 
 def get_files_from_url(url: str) -> list:
     """
@@ -38,6 +39,7 @@ def get_files_from_url(url: str) -> list:
             if '_links' in json_response and 'next' in json_response['_links']:
                 project_files.extend(get_files_from_url(json_response['_links']['next']['href']))
     return project_files
+
 def search_file_name_in_accession(project_accession: str, collection_name: str):
     """
     Search for the file name in the PRIDE archive API. First the extension of the file must be removed.
@@ -55,6 +57,22 @@ def search_file_name_in_accession(project_accession: str, collection_name: str):
         if "{}.{}".format(collection_name,"raw").lower() == file.lower():
             return file
     return None
+
+
+def get_pride_archive_project_publication_date(project_accession):
+    """
+    Get the publication date of the project from the PRIDE archive API
+    :param project_accession:
+    :return:
+    """
+    url = pride_archive_project_url.format(project_accession)
+    response = requests.get(url)
+    if response.status_code == 200:
+        json_response = response.json()
+        if 'publicationDate' in json_response:
+            return json_response['publicationDate']
+    return None
+
 
 def get_pride_file_name(usi):
     """
@@ -74,11 +92,12 @@ def get_pride_file_name(usi):
     usi_list = usi.split(":")
     if len(usi_list) > 4:
         project_accession = usi_list[1]
+        publication_date = get_pride_archive_project_publication_date(project_accession)
         file_name = search_file_name_in_accession(project_accession, usi_list[2])
         scan = usi_list[4]
     else:
         raise HTTPException(status_code=400, detail="The USI is not valid")
-    return project_accession, file_name, scan
+    return project_accession, publication_date, file_name, scan
 
 
 @app.get("/spectrum/")
@@ -86,9 +105,9 @@ async def extract_spectrum(usi: str = None):
     """
     Extract spectrum from a file using ThermoRawFileParser
     """
-    (project_accession, pride_file_name, scan_number) = get_pride_file_name(usi)
+    (project_accession, publication_date, pride_file_name, scan_number) = get_pride_file_name(usi)
 
-    if pride_file_name is None or scan_number is None:
+    if pride_file_name is None or scan_number is None or project_accession is None or publication_date is None:
         raise HTTPException(status_code=404, detail="File not found in PRIDE Archive")
 
     try:
