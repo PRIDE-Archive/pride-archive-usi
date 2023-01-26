@@ -1,5 +1,4 @@
-# You can use this file to create a conda environment for this pipeline:
-#   conda env create -f environment.yml
+# conda env create -f environment.yml
 name: pride-archive-usi-1.0.0
 channels:
   - openms
