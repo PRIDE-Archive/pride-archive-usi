@@ -88,7 +88,7 @@ async def extract_spectrum(usi: str = None):
     """
     (project_accession, pride_file_name, scan_number) = get_pride_file_name(usi)
 
-    if pride_file_name is None:
+    if pride_file_name is None or scan_number is None:
         raise HTTPException(status_code=404, detail="File not found in PRIDE Archive")
 
     try:
