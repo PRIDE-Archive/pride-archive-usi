@@ -2,10 +2,21 @@ from fastapi import FastAPI, HTTPException
 from subprocess import check_output
 import json
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 import requests
 
-app = FastAPI()
+app = FastAPI(title="PRIDE Archive USI",
+    description="PRIDE Archive Service to retrieve Spectrum from USI",
+    version="0.0.1",
+    contact={
+        "name": "PRIDE Team",
+        "url": "https://www.ebi.ac.uk/pride/",
+        "email": "pride-support@ebi.ac.uk",
+    },
+    license_info={
+        "name": "Apache 2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+    },)
+
 pride_archive_url = "https://www.ebi.ac.uk/pride/ws/archive/v2/projects/{}/files?filter=fileCategory.value==RAW" \
                     "&pageSize=100&page={}&sortDirection=DESC&sortConditions=fileName"
 
