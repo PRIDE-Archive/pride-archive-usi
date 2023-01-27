@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: $file_dowload_pvc
+spec:
+  storageClassName: $k8s_storageclass
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: $file_dowload_pvc_size
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $app_name
+  labels:
+    app: $app_name
+spec:
+  replicas: $k8s_replicas
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: $app_name
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: $app_name
+    spec:
+      imagePullSecrets:
+        - name: $DOCKER_PULL_SECRET
+      volumes:
+        - name: file_dowload_volume
+          persistentVolumeClaim:
+            claimName: $file_dowload_pvc
+      containers:
+        - name: $app_name
+          image: $IMAGE
+          imagePullPolicy: Always
+          ports:
+            - containerPort: $port
+          volumeMounts:
+            - name: file_dowload_volume
+              mountPath: $FILE_DOWNLOAD_PATH
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: $port
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 120
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: $port
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 120
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: $app_name-service
+spec:
+  selector:
+    app: $app_name
+  ports:
+    - protocol: TCP
+      port: $port
+      targetPort: $port
+  type: NodePort
