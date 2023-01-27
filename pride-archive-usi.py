@@ -1,3 +1,12 @@
+import configparser
+import os
+import uuid
+from datetime import datetime
+
+import boto3
+import botocore
+import botocore.config
+import click
 from fastapi import FastAPI, HTTPException
 from subprocess import check_output
 import json
@@ -5,22 +14,27 @@ from fastapi.responses import JSONResponse
 import requests
 
 app = FastAPI(title="PRIDE Archive USI",
-    description="PRIDE Archive Service to retrieve Spectrum from USI",
-    version="0.0.1",
-    contact={
-        "name": "PRIDE Team",
-        "url": "https://www.ebi.ac.uk/pride/",
-        "email": "pride-support@ebi.ac.uk",
-    },
-    license_info={
-        "name": "Apache 2.0",
-        "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
-    },)
+              description="PRIDE Archive Service to retrieve Spectrum from USI",
+              version="0.0.1",
+              contact={
+                  "name": "PRIDE Team",
+                  "url": "https://www.ebi.ac.uk/pride/",
+                  "email": "pride-support@ebi.ac.uk",
+              },
+              license_info={
+                  "name": "Apache 2.0",
+                  "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+              }, )
 
-pride_archive_url = "https://www.ebi.ac.uk/pride/ws/archive/v2/projects/{}/files?filter=fileCategory.value==RAW" \
-                    "&pageSize=100&page={}&sortDirection=DESC&sortConditions=fileName"
+pride_archive_file_url = "https://www.ebi.ac.uk/pride/ws/archive/v2/projects/{}/files?filter=fileCategory.value==RAW" \
+                         "&pageSize=100&page={}&sortDirection=DESC&sortConditions=fileName"
 
 pride_archive_project_url = "https://www.ebi.ac.uk/pride/ws/archive/v2/projects/{}"
+
+s3_client = None
+s3_bucket_name = ''
+file_download_path = ''
+
 
 def get_files_from_url(url: str) -> list:
     """
@@ -40,6 +54,7 @@ def get_files_from_url(url: str) -> list:
                 project_files.extend(get_files_from_url(json_response['_links']['next']['href']))
     return project_files
 
+
 def search_file_name_in_accession(project_accession: str, collection_name: str):
     """
     Search for the file name in the PRIDE archive API. First the extension of the file must be removed.
@@ -50,11 +65,11 @@ def search_file_name_in_accession(project_accession: str, collection_name: str):
     collection_name = collection_name.replace(".raw", "").replace(".RAW", "").replace(".mzML", "")
     page = 0
     # Query the API to get the json results, using request parameters
-    url = pride_archive_url.format(project_accession, page)
+    url = pride_archive_file_url.format(project_accession, page)
     project_files = get_files_from_url(url)
 
     for file in project_files:
-        if "{}.{}".format(collection_name,"raw").lower() == file.lower():
+        if "{}.{}".format(collection_name, "raw").lower() == file.lower():
             return file
     return None
 
@@ -111,21 +126,82 @@ async def extract_spectrum(usi: str = None):
         raise HTTPException(status_code=404, detail="File not found in PRIDE Archive")
 
     try:
-        output = check_output(["ThermorawFileparser.sh","query","-i={}".format(pride_file_name),
-                               "-n={}".format(scan_number),"-s"])
+        d_split = publication_date.split("-")
+        s3_file = d_split[0] + '/' + d_split[1] + '/' + project_accession + '/' + pride_file_name
+        local_file = file_download_path + '/' + str(uuid.uuid4()) + '.raw'
+        s3_client.download_file(s3_bucket_name, s3_file, local_file)
+
+        output = check_output(["ThermorawFileparser.sh", "query", "-i={}".format(local_file),
+                               "-n={}".format(scan_number), "-s"])
         spectrum = json.loads(output)
+        os.remove(local_file)
         return spectrum
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return JSONResponse(content=app.openapi())
+
 
 @app.get("/docs")
 def read_docs():
     return JSONResponse(content=app.openapi())
 
-if __name__ == "__main__":
+
+@app.get("/health")
+def read_docs():
+    return 'alive'
+
+def get_config(file):
+    """
+    This method read the default configuration file config.ini in the same path of the pipeline execution
+    :return:
+    """
+    config = configparser.ConfigParser()
+    config.read(file)
+    return config
+
+
+@click.command()
+@click.option('--config-file', '-a', type=click.Path(), default='config.ini')
+@click.option('--config-profile', '-c', help="This option allow to select a config profile", default='TEST')
+def main(config_file, config_profile):
+    global s3_client, s3_bucket_name, file_download_path
+    config = get_config(config_file)
+    s3_url = config[config_profile]['S3_URL']
+    s3_bucket_name = config[config_profile]['S3_BUCKET']
+    http_proxy = config[config_profile]['HTTP_PROXY']
+    file_download_path = config[config_profile]['FILE_DOWNLOAD_PATH']
+    port = config[config_profile]['PORT']
+
+    os.makedirs(file_download_path, exist_ok=True)
+
+    proxy_definitions = {
+        'http': http_proxy,
+        'https': http_proxy
+    }
+
+    config = botocore.config.Config(
+        region_name='us-east-1',
+        signature_version=botocore.UNSIGNED,
+        proxies=proxy_definitions,
+        retries={
+            'max_attempts': 10,
+            'mode': 'standard'
+        }
+    )
+
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=s3_url,
+        config=config
+    )
+
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(port))
+
+
+if __name__ == "__main__":
+    main()
