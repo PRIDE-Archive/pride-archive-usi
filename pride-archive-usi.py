@@ -1,7 +1,6 @@
 import configparser
 import os
 import uuid
-from datetime import datetime
 
 import boto3
 import botocore
