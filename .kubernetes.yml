@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: $file_dowload_pvc
+  name: $file_download_pvc
 spec:
   storageClassName: $k8s_storageclass
   accessModes:
     - ReadWriteMany
   resources:
     requests:
-      storage: $file_dowload_pvc_size
+      storage: $file_download_pvc_size
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,9 +35,9 @@ spec:
       imagePullSecrets:
         - name: $DOCKER_PULL_SECRET
       volumes:
-        - name: file_dowload_volume
+        - name: file_download_volume
           persistentVolumeClaim:
-            claimName: $file_dowload_pvc
+            claimName: $file_download_pvc
       containers:
         - name: $app_name
           image: $IMAGE
@@ -45,8 +45,8 @@ spec:
           ports:
             - containerPort: $port
           volumeMounts:
-            - name: file_dowload_volume
-              mountPath: $FILE_DOWNLOAD_PATH
+            - name: file_download_volume
+              mountPath: $file_download_path
           livenessProbe:
             httpGet:
               path: /health
