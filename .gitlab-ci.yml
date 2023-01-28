@@ -1,6 +1,7 @@
 variables:
   DOCKER_PULL_SECRET: pride-gitlab-docker-secret
   IMAGE: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:$CI_COMMIT_SHA
+  CONFIG_INI: configmap
 
 docker_build:
   image: docker:18.09
@@ -10,7 +11,7 @@ docker_build:
   script:
     - apk add --update bash gettext tzdata coreutils ca-certificates wget
     - update-ca-certificates
-    - envsubst < .config.ini > config.ini
+#    - envsubst < .config.ini > config.ini
     - docker info
     - docker build -t $IMAGE .
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
@@ -33,6 +34,11 @@ kube_deploy_prod_hh:
     - kubectl create namespace $k8s_namespace || true
     - kubectl -n $k8s_namespace delete secret $DOCKER_PULL_SECRET || true
     - kubectl -n $k8s_namespace create secret docker-registry $DOCKER_PULL_SECRET --docker-server=$CI_REGISTRY --docker-username=$CI_DEPLOY_USER --docker-password=$CI_DEPLOY_PASSWORD
+    - envsubst < .config.ini > config.ini
+    # create configmap for first time
+    - kubectl -n $k8s_namespace create configmap $CONFIG_INI --from-file=config.ini || true
+    # replace configmap if it already exists
+    - kubectl -n $k8s_namespace create configmap $CONFIG_INI --from-file=config.ini -o yaml --dry-run=client | kubectl replace -f -
     - envsubst < .kubernetes.yml > kubernetes.yml
     - cat kubernetes.yml
     - kubectl -n $k8s_namespace apply -f kubernetes.yml

@@ -38,6 +38,12 @@ spec:
         - name: file-download-volume
           persistentVolumeClaim:
             claimName: $file_download_pvc
+        - name: application-config
+          configMap:
+            name: $CONFIG_INI
+            items:
+              - key: config.ini
+                path: config.ini
       containers:
         - name: $app_name
           image: $IMAGE
@@ -45,6 +51,9 @@ spec:
           ports:
             - containerPort: $port
           volumeMounts:
+            - name: application-config
+              mountPath: "/app/"
+              readOnly: true
             - name: file-download-volume
               mountPath: $file_download_path
           livenessProbe:
