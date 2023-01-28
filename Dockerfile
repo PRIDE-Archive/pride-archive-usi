@@ -9,12 +9,12 @@ WORKDIR /app
 COPY environment.yml ./
 COPY config.ini ./
 COPY *.py ./
-#SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-c"]
 RUN mamba env create -n $conda_env -f environment.yml
 
-RUN echo "conda activate pride_env" >> ~/.bashrc
+RUN echo "conda activate $conda_env" >> ~/.bashrc
 
-RUN /bin/bash -c "source ~/.bashrc"
+RUN source ~/.bashrc
 
 # Add conda installation dir to PATH (instead of doing 'conda activate')
 ENV PATH /opt/conda/envs/$conda_env/bin:$PATH
