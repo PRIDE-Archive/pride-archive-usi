@@ -7,7 +7,7 @@ ARG conda_env=pride_env
 WORKDIR /app
 
 COPY environment.yml ./
-COPY config.ini ./
+#COPY config.ini ./
 COPY *.py ./
 SHELL ["/bin/bash", "-c"]
 RUN mamba env create -n $conda_env -f environment.yml
