@@ -35,7 +35,7 @@ spec:
       imagePullSecrets:
         - name: $DOCKER_PULL_SECRET
       volumes:
-        - name: file_download_volume
+        - name: file-download-volume
           persistentVolumeClaim:
             claimName: $file_download_pvc
       containers:
@@ -45,7 +45,7 @@ spec:
           ports:
             - containerPort: $port
           volumeMounts:
-            - name: file_download_volume
+            - name: file-download-volume
               mountPath: $file_download_path
           livenessProbe:
             httpGet:
