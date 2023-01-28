@@ -130,7 +130,7 @@ async def extract_spectrum(usi: str = None):
         local_file = file_download_path + '/' + str(uuid.uuid4()) + '.raw'
         s3_client.download_file(s3_bucket_name, s3_file, local_file)
 
-        output = check_output(["ThermorawFileparser.sh", "query", "-i={}".format(local_file),
+        output = check_output(["ThermoRawFileParser.sh", "query", "-i={}".format(local_file),
                                "-n={}".format(scan_number), "-s"])
         spectrum = json.loads(output)
         os.remove(local_file)
