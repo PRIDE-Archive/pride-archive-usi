@@ -1,16 +1,21 @@
 import configparser
 import os
 import uuid
+import warnings
+from typing import Optional
 
 import boto3
 import botocore
 import botocore.config
 import click
+from elasticsearch import Elasticsearch
 from fastapi import FastAPI, HTTPException
 from subprocess import check_output
 import json
 from fastapi.responses import JSONResponse
 import requests
+
+
 
 app = FastAPI(title="PRIDE Archive USI",
               description="PRIDE Archive Service to retrieve Spectrum from USI",
@@ -34,6 +39,32 @@ s3_client = None
 s3_bucket_name = ''
 file_download_path = ''
 
+elastic_client = None
+elastic_index = ''
+
+def get_usi_cache(usi: str) -> dict:
+    """
+    Get the USI cache from the ElasticSearch
+    :param usi:
+    :return:
+    """
+    try:
+        response = elastic_client.search(index=elastic_index, body={"query": {"match": {"usi": usi}}})
+        if response['hits']['total']['value'] > 0:
+            return json.loads(response['hits']['hits'][0]['_source']['cache'])
+    except Exception as e:
+        warnings.warn("Error getting the USI cache from ElasticSearch: {}".format(e))
+    return None
+
+def save_usi_cache(usi: str, cache):
+    """
+    Save the USI cache in the ElasticSearch
+    :param usi:
+    :param cache:
+    :return:
+    """
+    cache_string = json.dumps(cache)
+    elastic_client.index(index=elastic_index, body={"usi": usi, "cache": cache_string})
 
 def get_files_from_url(url: str) -> list:
     """
@@ -61,7 +92,7 @@ def search_file_name_in_accession(project_accession: str, collection_name: str):
     :param collection_name:
     :return:
     """
-    collection_name = collection_name.replace(".raw", "").replace(".RAW", "").replace(".mzML", "")
+    collection_name = get_collection_name(collection_name)
     page = 0
     # Query the API to get the json results, using request parameters
     url = pride_archive_file_url.format(project_accession, page)
@@ -72,6 +103,15 @@ def search_file_name_in_accession(project_accession: str, collection_name: str):
             return file
     return None
 
+def get_collection_name(filename: str) -> Optional[str]:
+    """
+    Get the collection name from the file name
+    :param filename:
+    :return:
+    """
+    if filename is not None:
+        return filename.replace(".raw", "").replace(".RAW", "").replace(".mzML", "")
+    return None
 
 def get_pride_archive_project_publication_date(project_accession):
     """
@@ -121,6 +161,11 @@ async def extract_spectrum(usi: str = None):
     """
     (project_accession, publication_date, pride_file_name, scan_number) = get_pride_file_name(usi)
 
+    canonical_usi = "mzspec:{}:{}:scan:{}".format(project_accession, get_collection_name(pride_file_name), scan_number)
+    cache_usi = get_usi_cache(canonical_usi)
+    if cache_usi is not None:
+        return cache_usi
+
     if pride_file_name is None or scan_number is None or project_accession is None or publication_date is None:
         raise HTTPException(status_code=404, detail="File not found in PRIDE Archive")
 
@@ -133,6 +178,7 @@ async def extract_spectrum(usi: str = None):
         output = check_output(["ThermoRawFileParser.sh", "query", "-i={}".format(local_file),
                                "-n={}".format(scan_number), "-s"])
         spectrum = json.loads(output)
+        save_usi_cache(canonical_usi, spectrum)
         os.remove(local_file)
         return spectrum
     except Exception as e:
@@ -167,13 +213,20 @@ def get_config(file):
 @click.option('--config-file', '-a', type=click.Path(), default='config.ini')
 @click.option('--config-profile', '-c', help="This option allow to select a config profile", default='TEST')
 def main(config_file, config_profile):
-    global s3_client, s3_bucket_name, file_download_path
+    global s3_client, s3_bucket_name, file_download_path, elastic_client, elastic_index
     config = get_config(config_file)
     s3_url = config[config_profile]['S3_URL']
     s3_bucket_name = config[config_profile]['S3_BUCKET']
     http_proxy = config[config_profile]['HTTP_PROXY']
     file_download_path = config[config_profile]['FILE_DOWNLOAD_PATH']
     port = config[config_profile]['PORT']
+
+    elastic_server = config[config_profile]['ELASTIC_SEARCH_SERVER']
+    elastic_port = config[config_profile]['ELASTIC_SEARCH_PORT']
+    elastic_user = config[config_profile]['ELASTIC_SEARCH_USER']
+    elastic_password = config[config_profile]['ELASTIC_SEARCH_PASSWORD']
+    elastic_index = config[config_profile]['ELASTIC_SEARCH_INDEX']
+
 
     os.makedirs(file_download_path, exist_ok=True)
 
@@ -196,6 +249,12 @@ def main(config_file, config_profile):
         's3',
         endpoint_url=s3_url,
         config=config
+    )
+
+    elastic_client = Elasticsearch(
+        [{'host': str(elastic_server), 'port': int(elastic_port), 'scheme': "https"}],
+        http_auth=(elastic_user, elastic_password),
+        verify_certs=False
     )
 
     import uvicorn
