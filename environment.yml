@@ -12,3 +12,4 @@ dependencies:
   - conda-forge::python-multipart
   - conda-forge::requests
   - boto3=1.26.57
+  - elasticsearch
