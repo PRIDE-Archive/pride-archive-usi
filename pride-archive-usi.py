@@ -221,7 +221,7 @@ def main(config_file, config_profile):
     file_download_path = config[config_profile]['FILE_DOWNLOAD_PATH']
     port = config[config_profile]['PORT']
 
-    elastic_server = config[config_profile]['ELASTIC_SEARCH_SERVER']
+    elastic_server_array = config[config_profile]['ELASTIC_SEARCH_SERVERS'].split(',')
     elastic_port = config[config_profile]['ELASTIC_SEARCH_PORT']
     elastic_user = config[config_profile]['ELASTIC_SEARCH_USER']
     elastic_password = config[config_profile]['ELASTIC_SEARCH_PASSWORD']
@@ -252,7 +252,9 @@ def main(config_file, config_profile):
     )
 
     elastic_client = Elasticsearch(
-        [{'host': str(elastic_server), 'port': int(elastic_port), 'scheme': "https"}],
+        elastic_server_array,
+        port=elastic_port,
+        scheme="https",
         http_auth=(elastic_user, elastic_password),
         verify_certs=False
     )
