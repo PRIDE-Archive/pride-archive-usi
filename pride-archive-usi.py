@@ -154,7 +154,7 @@ def get_pride_file_name(usi):
     return project_accession, publication_date, file_name, scan
 
 
-@app.get("/spectrum/")
+@app.get("/spectrum")
 async def extract_spectrum(usi: str = None):
     """
     Extract spectrum from a file using ThermoRawFileParser
