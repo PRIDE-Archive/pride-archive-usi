@@ -9,6 +9,7 @@ import boto3
 import botocore
 import botocore.config
 import click
+import urllib3
 from elasticsearch import Elasticsearch
 from fastapi import FastAPI, HTTPException
 from subprocess import check_output
@@ -49,7 +50,7 @@ def get_usi_cache(usi: str) -> dict:
     :return:
     """
     try:
-        response = elastic_client.search(index=elastic_index, body={"query": {"match": {"usi": usi}}})
+        response = elastic_client.search(index=elastic_index, query={"match_phrase": {"usi": usi}})
         if response['hits']['total']['value'] > 0:
             return json.loads(response['hits']['hits'][0]['_source']['cache'])
     except Exception as e:
@@ -201,7 +202,9 @@ def read_docs():
 
 @app.put("/log/{level}")
 def change_log_level(level):
-    logging.getLogger('uvicorn').setLevel(str(level).upper())
+    logging.getLogger("uvicorn.error").setLevel(str(level).upper())
+    logging.getLogger("uvicorn.access").setLevel(str(level).upper())
+    logging.getLogger("uvicorn.asgi").setLevel(str(level).upper())
 
 
 @app.get("/health")
@@ -261,9 +264,11 @@ def main(config_file, config_profile):
 
     elastic_client = Elasticsearch(
         hosts=elastic_server_array,
-        http_auth=(elastic_user, elastic_password),
+        basic_auth=(elastic_user, elastic_password),
         verify_certs=False
     )
+
+    urllib3.disable_warnings() #disables ssl warnings while accessing elastic
 
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(port))
