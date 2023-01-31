@@ -42,7 +42,10 @@ file_download_path = ''
 elastic_client = None
 elastic_index = ''
 
+logging.basicConfig()
 app_logger = logging.getLogger("pride-usi")
+app_logger.setLevel("INFO")
+
 
 def get_usi_cache(usi: str) -> dict:
     """
@@ -171,6 +174,7 @@ async def extract_spectrum(usi: str = None):
     canonical_usi = "mzspec:{}:{}:scan:{}".format(project_accession, get_collection_name(pride_file_name), scan_number)
     cache_usi = get_usi_cache(canonical_usi)
     if cache_usi is not None:
+        app_logger.debug("found in cache: " + usi)
         return cache_usi
 
     if pride_file_name is None or scan_number is None or project_accession is None or publication_date is None:
@@ -206,9 +210,11 @@ def read_docs():
 
 @app.put("/log/{level}")
 def change_log_level(level):
-    logging.getLogger("uvicorn.error").setLevel(str(level).upper())
-    logging.getLogger("uvicorn.access").setLevel(str(level).upper())
-    logging.getLogger("uvicorn.asgi").setLevel(str(level).upper())
+    level_upper = str(level).upper()
+    logging.getLogger("uvicorn.error").setLevel(level_upper)
+    logging.getLogger("uvicorn.access").setLevel(level_upper)
+    logging.getLogger("uvicorn.asgi").setLevel(level_upper)
+    app_logger.setLevel(level_upper)
 
 
 @app.get("/health")
