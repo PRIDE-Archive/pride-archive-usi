@@ -42,6 +42,7 @@ file_download_path = ''
 elastic_client = None
 elastic_index = ''
 
+app_logger = logging.getLogger("pride-usi")
 
 def get_usi_cache(usi: str) -> dict:
     """
@@ -66,7 +67,8 @@ def save_usi_cache(usi: str, cache):
     :return:
     """
     cache_string = json.dumps(cache)
-    elastic_client.index(index=elastic_index, body={"usi": usi, "cache": cache_string})
+    elastic_client.index(index=elastic_index, document={"usi": usi, "cache": cache_string})
+    app_logger.info("Saved to elastic : " + usi)
 
 
 def get_files_from_url(url: str) -> list:
@@ -177,7 +179,9 @@ async def extract_spectrum(usi: str = None):
     try:
         d_split = publication_date.split("-")
         s3_file = d_split[0] + '/' + d_split[1] + '/' + project_accession + '/' + pride_file_name
-        local_file = file_download_path + '/' + str(uuid.uuid4()) + '.raw'
+        saved_file = str(uuid.uuid4()) + '.raw'
+        local_file = file_download_path + '/' + saved_file
+        app_logger.info('downloading file : ' + s3_file + " AS " + saved_file)
         s3_client.download_file(s3_bucket_name, s3_file, local_file)
 
         output = check_output(["ThermoRawFileParser.sh", "query", "-i={}".format(local_file),
