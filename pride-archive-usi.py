@@ -222,7 +222,6 @@ def main(config_file, config_profile):
     port = config[config_profile]['PORT']
 
     elastic_server_array = config[config_profile]['ELASTIC_SEARCH_SERVERS'].split(',')
-    elastic_port = config[config_profile]['ELASTIC_SEARCH_PORT']
     elastic_user = config[config_profile]['ELASTIC_SEARCH_USER']
     elastic_password = config[config_profile]['ELASTIC_SEARCH_PASSWORD']
     elastic_index = config[config_profile]['ELASTIC_SEARCH_INDEX']
@@ -253,8 +252,6 @@ def main(config_file, config_profile):
 
     elastic_client = Elasticsearch(
         hosts=elastic_server_array,
-        port=elastic_port,
-        scheme="https",
         http_auth=(elastic_user, elastic_password),
         verify_certs=False
     )
