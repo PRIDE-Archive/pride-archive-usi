@@ -252,7 +252,7 @@ def main(config_file, config_profile):
     )
 
     elastic_client = Elasticsearch(
-        elastic_server_array,
+        hosts=elastic_server_array,
         port=elastic_port,
         scheme="https",
         http_auth=(elastic_user, elastic_password),
