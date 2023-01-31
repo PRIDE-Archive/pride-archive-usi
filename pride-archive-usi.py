@@ -270,8 +270,19 @@ def main(config_file, config_profile):
 
     urllib3.disable_warnings() #disables ssl warnings while accessing elastic
 
+    logging.getLogger("uvicorn.access").addFilter(NoHealthAccessLogFilter())
+
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(port))
+
+
+class NoHealthAccessLogFilter(logging.Filter):
+    def filter(self, record):
+        message = record.getMessage()
+        if "GET /health" in message:
+            return False
+        else:
+            return True
 
 
 if __name__ == "__main__":
