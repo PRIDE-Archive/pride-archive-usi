@@ -1,4 +1,5 @@
 import configparser
+import logging
 import os
 import uuid
 import warnings
@@ -14,8 +15,6 @@ from subprocess import check_output
 import json
 from fastapi.responses import JSONResponse
 import requests
-
-
 
 app = FastAPI(title="PRIDE Archive USI",
               description="PRIDE Archive Service to retrieve Spectrum from USI",
@@ -42,6 +41,7 @@ file_download_path = ''
 elastic_client = None
 elastic_index = ''
 
+
 def get_usi_cache(usi: str) -> dict:
     """
     Get the USI cache from the ElasticSearch
@@ -56,6 +56,7 @@ def get_usi_cache(usi: str) -> dict:
         warnings.warn("Error getting the USI cache from ElasticSearch: {}".format(e))
     return None
 
+
 def save_usi_cache(usi: str, cache):
     """
     Save the USI cache in the ElasticSearch
@@ -65,6 +66,7 @@ def save_usi_cache(usi: str, cache):
     """
     cache_string = json.dumps(cache)
     elastic_client.index(index=elastic_index, body={"usi": usi, "cache": cache_string})
+
 
 def get_files_from_url(url: str) -> list:
     """
@@ -103,6 +105,7 @@ def search_file_name_in_accession(project_accession: str, collection_name: str):
             return file
     return None
 
+
 def get_collection_name(filename: str) -> Optional[str]:
     """
     Get the collection name from the file name
@@ -112,6 +115,7 @@ def get_collection_name(filename: str) -> Optional[str]:
     if filename is not None:
         return filename.replace(".raw", "").replace(".RAW", "").replace(".mzML", "")
     return None
+
 
 def get_pride_archive_project_publication_date(project_accession):
     """
@@ -195,9 +199,15 @@ def read_docs():
     return JSONResponse(content=app.openapi())
 
 
+@app.put("/log/{level}")
+def change_log_level(level):
+    logging.getLogger('uvicorn').setLevel(str(level).upper())
+
+
 @app.get("/health")
 def read_docs():
     return 'alive'
+
 
 def get_config(file):
     """
@@ -225,7 +235,6 @@ def main(config_file, config_profile):
     elastic_user = config[config_profile]['ELASTIC_SEARCH_USER']
     elastic_password = config[config_profile]['ELASTIC_SEARCH_PASSWORD']
     elastic_index = config[config_profile]['ELASTIC_SEARCH_INDEX']
-
 
     os.makedirs(file_download_path, exist_ok=True)
 
