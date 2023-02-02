@@ -1,0 +1,15 @@
+# conda env create -f environment.yml
+name: pride-archive-usi-1.0.0
+channels:
+  - openms
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.7
+  - bioconda::thermorawfileparser
+  - conda-forge::fastapi
+  - conda-forge::uvicorn
+  - conda-forge::python-multipart
+  - conda-forge::requests
+  - boto3=1.26.57
+  - elasticsearch=8.5.1
